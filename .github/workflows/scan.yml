@@ -90,6 +90,7 @@ jobs:
           PAGE_URL: ${{ vars.PAGE_URL }}
           NTFY_MIN_SCORE: ${{ vars.NTFY_MIN_SCORE || '6' }}
           NTFY_STATUSES: ${{ vars.NTFY_STATUSES || 'TRIGGER' }}
+          NTFY_UPDATES: ${{ vars.NTFY_UPDATES || 'all' }}
         run: python notify.py --dir _site/data --state .state/notified.json
 
       - name: Build site
