@@ -1,0 +1,91 @@
+name: scan
+
+on:
+  schedule:
+    - cron: '0 3 * * 1-5'       # 08:30 IST  swing, before the open (uses yesterday's close)
+    - cron: '5 5-9 * * 1-5'     # 10:35-14:35 IST  swing, 20 min after each 1H candle closes
+    - cron: '45 10 * * 1-5'     # 16:15 IST  swing, after the close
+    - cron: '*/15 4-9 * * 1-5'  # 09:30-15:15 IST  Nifty options every 15 min, intraday stocks every 30 min
+  workflow_dispatch:            # "Run workflow" button on the Actions tab
+    inputs:
+      mode:
+        description: What to scan
+        type: choice
+        default: all
+        options: [all, swing, live, options, intraday]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - id: d
+        run: echo "date=$(TZ=Asia/Kolkata date +%F)" >> "$GITHUB_OUTPUT"
+
+      - id: m
+        name: Choose what to scan
+        run: |
+          mode="${{ inputs.mode }}"
+          if [ -z "$mode" ]; then
+            case "${{ github.event.schedule }}" in
+              "*/15 4-9 * * 1-5") mode=live ;;
+              *) mode=swing ;;
+            esac
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "Scanning: $mode"
+
+      - name: Restore results from earlier runs (each run refreshes only its own section)
+        uses: actions/cache@v4
+        with:
+          path: _site/data
+          key: data-${{ github.run_id }}
+          restore-keys: data-
+
+      - name: Restore alert state (so each setup is pushed once a day)
+        uses: actions/cache@v4
+        with:
+          path: .state
+          key: notified-${{ steps.d.outputs.date }}-${{ github.run_id }}
+          restore-keys: notified-${{ steps.d.outputs.date }}-
+
+      - name: Scan
+        run: python strategy_scanner.py --mode ${{ steps.m.outputs.mode }} --out _site/data
+
+      - name: Push alerts to the phone
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          PAGE_URL: ${{ vars.PAGE_URL }}
+          NTFY_MIN_SCORE: ${{ vars.NTFY_MIN_SCORE || '6' }}
+        run: python notify.py --dir _site/data --state .state/notified.json
+
+      - name: Build site
+        run: cp -r site/. _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
