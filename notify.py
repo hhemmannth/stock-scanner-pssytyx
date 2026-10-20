@@ -30,10 +30,20 @@ def send(base, topic, s, section, click):
     if click: headers['Click'] = click
     urllib.request.urlopen(urllib.request.Request(f'{base}/{topic}', data=message(s).encode('utf-8'), headers=headers, method='POST'), timeout=20).read()
 
+def send_test(base, topic, click):
+    headers = {'Title': 'Setup Radar: test alert', 'Priority': '3', 'Tags': 'white_check_mark'}
+    if click: headers['Click'] = click
+    body = 'Alerts are working. You will get a push here when a swing, Nifty options or intraday setup triggers (score 6 or more).'
+    urllib.request.urlopen(urllib.request.Request(f'{base}/{topic}', data=body.encode('utf-8'), headers=headers, method='POST'), timeout=20).read()
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('--dir', default='_site/data'); ap.add_argument('--state', default='.state/notified.json'); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument('--dir', default='_site/data'); ap.add_argument('--state', default='.state/notified.json')
+    ap.add_argument('--test', action='store_true', help='send one test notification and exit'); a = ap.parse_args()
     topic = os.environ.get('NTFY_TOPIC', '').strip()
-    if not topic: print('NTFY_TOPIC not set, skipping alerts.'); return 0
+    if not topic: print('NTFY_TOPIC not set, skipping alerts.'); return 1 if a.test else 0
+    if a.test:
+        try: send_test(os.environ.get('NTFY_URL', 'https://ntfy.sh').rstrip('/'), topic, os.environ.get('PAGE_URL', '').strip()); print('test alert sent'); return 0
+        except Exception as ex: print(f'test alert failed: {ex}', file=sys.stderr); return 1
     base = os.environ.get('NTFY_URL', 'https://ntfy.sh').rstrip('/'); min_score = int(os.environ.get('NTFY_MIN_SCORE', '6') or 6)
     statuses = tuple(x.strip().upper() for x in os.environ.get('NTFY_STATUSES', 'TRIGGER').split(',') if x.strip()); click = os.environ.get('PAGE_URL', '').strip(); today = ist_today()
     try: state = json.load(open(a.state))
