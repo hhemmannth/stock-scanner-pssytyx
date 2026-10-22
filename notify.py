@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phone notifications through ntfy (https://ntfy.sh) for the three sections.
+"""DownerStuffScreener phone notifications through ntfy (https://ntfy.sh) for the three sections.
 
 Two kinds of push:
   1. ALERT   a setup reached TRIGGER (score >= NTFY_MIN_SCORE). Once per setup per day.
@@ -9,7 +9,7 @@ Env vars:
   NTFY_TOPIC       required. A long random topic name. Anyone who knows it can read the pushes.
   NTFY_MIN_SCORE   default 6 (grade A and above)
   NTFY_STATUSES    default TRIGGER (matches TRIGGERED and TRIGGER (check volume)). Add WATCH to get those too.
-  NTFY_UPDATES     default all.  all = every fresh scan, swing = only swing scans, off = no update pushes.
+  NTFY_UPDATES     default swing.  swing = only the hourly swing scans, all = every fresh scan (about 150 pushes a day at a 5-minute rhythm), off = none.
   PAGE_URL         optional, opens when you tap the push
   NTFY_URL         default https://ntfy.sh
 No Priority header is sent: some iOS installs of the ntfy app do not show pushes that carry one."""
@@ -56,9 +56,9 @@ def main():
     topic = os.environ.get('NTFY_TOPIC', '').strip(); click = os.environ.get('PAGE_URL', '').strip(); base = os.environ.get('NTFY_URL', 'https://ntfy.sh').rstrip('/')
     if not topic: print('NTFY_TOPIC not set, skipping alerts.'); return 1 if a.test else 0
     if a.test:
-        try: post(base, topic, 'Setup Radar: test', 'If you see this banner on the lock screen, pushes work. You will get a push when a setup triggers (score 6 or more) and when a scan finishes.', 'white_check_mark', click); print('test alert sent'); return 0
+        try: post(base, topic, 'DownerStuffScreener: test', 'If you see this banner on the lock screen, pushes work. You will get a push when a setup triggers (score 6 or more) and when a scan finishes.', 'white_check_mark', click); print('test alert sent'); return 0
         except Exception as ex: print(f'test alert failed: {ex}', file=sys.stderr); return 1
-    min_score = int(os.environ.get('NTFY_MIN_SCORE', '6') or 6); updates = os.environ.get('NTFY_UPDATES', 'all').strip().lower() or 'all'
+    min_score = int(os.environ.get('NTFY_MIN_SCORE', '6') or 6); updates = os.environ.get('NTFY_UPDATES', 'swing').strip().lower() or 'swing'
     statuses = tuple(x.strip().upper() for x in os.environ.get('NTFY_STATUSES', 'TRIGGER').split(',') if x.strip()); now = ist_now(); today = now.strftime('%Y-%m-%d')
     try: state = json.load(open(a.state))
     except Exception: state = {}
@@ -73,7 +73,7 @@ def main():
             try: send_alert(base, topic, s, title, click); state['sent'].append(k); sent += 1
             except Exception as ex: print(f"  could not send {s['symbol']}: {ex}", file=sys.stderr)
         if updates == 'off' or (updates == 'swing' and key != 'swing') or state['updated'].get(key) == data.get('generated_at') or not fresh(data, datetime.datetime.now(datetime.timezone.utc)): continue
-        try: post(base, topic, f'Setup Radar: {title} scan updated', update_text(key, data), 'arrows_counterclockwise', click); state['updated'][key] = data['generated_at']; ups += 1
+        try: post(base, topic, f'DownerStuffScreener: {title} scan updated', update_text(key, data), 'arrows_counterclockwise', click); state['updated'][key] = data['generated_at']; ups += 1
         except Exception as ex: print(f'  could not send update for {key}: {ex}', file=sys.stderr)
     os.makedirs(os.path.dirname(a.state) or '.', exist_ok=True); json.dump(state, open(a.state, 'w')); print(f'alerts sent: {sent}, updates sent: {ups}'); return 0
 
