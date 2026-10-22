@@ -2,17 +2,19 @@ name: scan
 
 on:
   schedule:
-    - cron: '0 3 * * 1-5'       # 08:30 IST  swing, before the open (uses yesterday's close)
-    - cron: '5 5-9 * * 1-5'     # 10:35-14:35 IST  swing, 20 min after each 1H candle closes
-    - cron: '45 10 * * 1-5'     # 16:15 IST  swing, after the close
-    - cron: '*/15 4-9 * * 1-5'  # 09:30-15:15 IST  Nifty options every 15 min, intraday stocks every 30 min
+    - cron: '7 3 * * 1-5'              # about 08:37 IST  swing + market + news, before the open
+    - cron: '55 4-9 * * 1-5'           # about 10:25 to 15:25 IST  swing, every hour, after each 1H candle has closed
+    - cron: '47 10 * * 1-5'            # about 16:17 IST  swing + market + news, after the close
+    - cron: '47-57/5 3 * * 1-5'        # about 09:17 to 09:27 IST  Nifty options + intraday stocks, every 5 minutes
+    - cron: '2-59/5 4-9 * * 1-5'       # about 09:32 to 15:27 IST  Nifty options + intraday stocks, every 5 minutes
+    - cron: '2 10 * * 1-5'             # about 15:32 IST  last run, to catch the final candles
   workflow_dispatch:            # "Run workflow" button on the Actions tab
     inputs:
       mode:
         description: What to scan
         type: choice
         default: all
-        options: [all, swing, live, options, intraday]
+        options: [all, swing, live, options, intraday, market, news]
       test_alert:
         description: Also send a test notification to the phone
         type: boolean
@@ -60,7 +62,8 @@ jobs:
           mode="${{ inputs.mode }}"
           if [ -z "$mode" ]; then
             case "${{ github.event.schedule }}" in
-              "*/15 4-9 * * 1-5") mode=live ;;
+              "47-57/5 3 * * 1-5"|"2-59/5 4-9 * * 1-5"|"2 10 * * 1-5") mode=live ;;
+
               *) mode=swing ;;
             esac
           fi
@@ -90,7 +93,7 @@ jobs:
           PAGE_URL: ${{ vars.PAGE_URL }}
           NTFY_MIN_SCORE: ${{ vars.NTFY_MIN_SCORE || '6' }}
           NTFY_STATUSES: ${{ vars.NTFY_STATUSES || 'TRIGGER' }}
-          NTFY_UPDATES: ${{ vars.NTFY_UPDATES || 'all' }}
+          NTFY_UPDATES: ${{ vars.NTFY_UPDATES || 'swing' }}
         run: python notify.py --dir _site/data --state .state/notified.json
 
       - name: Build site
